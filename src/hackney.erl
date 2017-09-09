@@ -467,7 +467,7 @@ stream_body(Ref) ->
 %% <li>`eof': notify the end of the multipart request</li>
 %% </ul>
 -spec stream_multipart(client_ref())
-    -> {headers, list()} | {body, binary()} | eof | end_of_part
+    -> {headers, list()} | {body, binary()} | eof | end_of_part |mp_mixed | mp_mixed_eof
   | {error, term()}.
 stream_multipart(Ref) ->
   hackney_manager:get_state(Ref, fun(State) ->
@@ -539,7 +539,7 @@ resume_stream(Ref) ->
                                                end).
 
 %% @doc stop to receive asynchronously.
--spec stop_async(client_ref()) -> ok | {error, req_not_found} | {error, term()}.
+-spec stop_async(client_ref()) -> {ok, term()} | {error, req_not_found} | {error, term()}.
 stop_async(Ref) ->
   hackney_manager:stop_async_response(Ref).
 
