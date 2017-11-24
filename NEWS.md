@@ -1,16 +1,31 @@
 # NEWS
 
+1.10.1 - 2017-10-20
+-------------------
+
+- improvement: ignore port empty values on redirect (#444)
+- fix: fix reference leak introduced in latest version (#445)
+- fix: stream termination, don't raise an error on normal exit
+
+1.10.0 - 2017-10-18
+-------------------
+
+- fix owner tracking (#443)
+- fix: fix deadlock in `hackney_pool` during request timeout (#420)
+- fix: set PoolHandler on connect (#427)
+- fix: fix unicode in include file (#426)
+
 1.9.0 - 2017-07-30
 ------------------
 
 - security: certifi 2.0.0
 - dependency: update idna 5.1.0 (fix windows build and usage with elixir)
-- doc: fix typo hackney_multipart doc (#422)
+- doc: fix typo `hackney_multipart` doc (#422)
 
 1.8.6 - 2017-06-09
 --------------------
 
-- fix: cleanup socket in async request (#411) 
+- fix: cleanup socket in async request (#411)
 
 1.8.5 - 2017-05-30
 ------------------
