@@ -2,9 +2,9 @@
 
 # hackney - HTTP client library in Erlang #
 
-Copyright (c) 2012-2017 Benoît Chesneau.
+Copyright (c) 2012-2018 Benoît Chesneau.
 
-__Version:__ 1.10.1
+__Version:__ 1.11.0
 
 # hackney
 
@@ -102,7 +102,7 @@ This fixes zsh (and maybe other shells) escript-related bugs. Also this should s
 
 ```erlang-repl
 
-1>> hackney:start().
+1>> application:ensure_all_started(hackney).
 ok
 ```
 

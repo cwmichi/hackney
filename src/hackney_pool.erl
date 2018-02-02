@@ -209,7 +209,6 @@ start_link(Name, Options0) ->
   gen_server:start_link(?MODULE, [Name, Options], []).
 
 init([Name, Options]) ->
-  process_flag(priority, high),
   case lists:member({seed,1}, ssl:module_info(exports)) of
     true ->
       % Make sure that the ssl random number generator is seeded
@@ -475,7 +474,7 @@ add_to_queue({_Host, _Port, _Transport} = Dest, From, Ref, Queues) ->
 del_from_queue({_Host, _Port, _Transport} = Dest, Ref, Queues) ->
   case dict:find(Dest, Queues) of
     error ->
-      {Queues, 0};
+      {Queues, false};
     {ok, Q} ->
       Q2 = queue:filter(fun({_, R}) -> R =/= Ref end, Q),
       Removed = queue:len(Q) =/= queue:len(Q2),
