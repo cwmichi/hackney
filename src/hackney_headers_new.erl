@@ -31,8 +31,8 @@
 
 
 -type headers() ::term().
--type key() :: binary() | string().
--type value() :: binary() | {binary() | list({binary(), binary()} | binary())}.
+-type key() :: binary() | string().
+-type value() :: binary() | {binary() | list({binary(), binary()} | binary())}.
 -type headers_list() :: [{key(), value()}].
 
 -export_types([headers/0, key/0, value/0]).
@@ -64,12 +64,12 @@ append(Key, Value, {N, Headers}) ->
   {N + 1, dict:append(KL, {N, Key, Value}, Headers)}.
 
 %% @doc replace the content of the header field with the value or the list of values.
--spec store(key(), value() | [value()], headers()) -> headers().
+-spec store(key(), value() | [value()], headers()) -> headers().
 store(Key, Values, {N, Headers}) when is_list(Values) ->
   KL = ?kl(Key),
   lists:foldl(
     fun(V, {I, H}) ->
-      {I + 1, dict:append(KL, [{I, Key, V}], H)}
+      {I + 1, dict:append(KL, {I, Key, V}, H)}
     end,
     {N, dict:store(KL, [], Headers)},
     Values
@@ -125,7 +125,7 @@ lookup(Key, {_, Headers}) ->
 get_value(Key, Headers) -> get_value(Key, Headers, undefined).
 
 %% @doc get the first value of an headers or return the default
--spec get_value(key(), headers(), any()) -> value() | any().
+-spec get_value(key(), headers(), any()) -> value() | any().
 get_value(Key, Headers, Default) ->
   case lookup(Key, Headers) of
     [] -> Default;

@@ -8,6 +8,8 @@
 
 -export([connect/1, connect/2, connect/3, connect/4,
          close/1,
+         peername/1,
+         sockname/1,
          request_info/1,
          location/1,
          request/1, request/2, request/3, request/4, request/5,
@@ -40,10 +42,10 @@
 -include("hackney_internal.hrl").
 
 
--type url() :: #hackney_url{} | binary().
+-type url() :: #hackney_url{} | binary().
 -export_type([url/0]).
 
--opaque client() :: #client{}.
+-type client() :: #client{}.
 -export_type([client/0]).
 
 -type client_ref() :: term().
@@ -93,7 +95,7 @@ cancel_request(Ref) ->
 %% @doc set client options.
 %% Options are:
 %% - `async': to fetch the response asynchronously
-%% - `{async, once}': to receive the response asynchronously once time.
+%% - `{async, once}': to receive the response asynchronously one time.
 %% To receive the next message use the function `hackney:stream_next/1'.
 %% - `{stream_to, pid()}': to set the pid where the messages of an
 %% asynchronous response will be sent.
@@ -108,12 +110,21 @@ setopts(Ref, Options) ->
   hackney_manager:get_state(Ref, fun(State) ->
     State2 = parse_options(Options, State),
     hackney_manager:update_state(Ref, State2)
-                                 end).
+                                 end),
+  ok.
 
 %% @doc close the client
 close(Ref) ->
   hackney_connect:close(Ref).
 
+
+%% @doc peername of the client
+peername(Ref) ->
+  hackney_connect:peername(Ref).
+
+%% @doc sockname of the client
+sockname(Ref) ->
+  hackney_connect:sockname(Ref).
 
 %% @doc get request info
 -spec request_info(client_ref()) -> list().
@@ -224,13 +235,17 @@ request(Method, URL, Headers, Body) ->
 %%          redirection for a request</li>
 %%          <li>`{force_redirect, boolean}': false by default, to force the
 %%          redirection even on POST</li>
+%%          <li>`{basic_auth, {binary, binary}}`: HTTP basic auth username and password.</li>
 %%          <li>`{proxy, proxy_options()}': to connect via a proxy.</li>
 %%          <li>`insecure': to perform "insecure" SSL connections and
 %%          transfers without checking the certificate</li>
+%%          <li>`{checkout_timeout, infinity | integer()}': timeout used when
+%%          checking out a socket from the pool, in milliseconds.
+%%          By default is equal to connect_timeout</li>
 %%          <li>`{connect_timeout, infinity | integer()}': timeout used when
 %%          establishing a connection, in milliseconds. Default is 8000</li>
 %%          <li>`{recv_timeout, infinity | integer()}': timeout used when
-%%          receiving a connection. Default is 5000</li>
+%%          receiving data over a connection. Default is 5000</li>
 %%      </ul>
 %%
 %%      <blockquote>Note: if the response is async, only
@@ -257,17 +272,19 @@ request(Method, URL, Headers, Body) ->
 %%      </li>
 %%  </ul>
 %%
-%%  <bloquote>Note: instead of doing `hackney:request(Method, ...)' you can
+%%  <blockquote>Note: instead of doing `hackney:request(Method, ...)' you can
 %%  also do `hackney:Method(...)' if you prefer to use the REST
-%%  syntax.</bloquote>
+%%  syntax.</blockquote>
 %%
 %%  Return:
 %%  <ul>
 %%  <li><code>{ok, ResponseStatus, ResponseHeaders}</code>: On HEAD
 %%  request if the response succeeded.</li>
-%%  <li><code>{ok, ResponseStatus, ResponseHeaders, Ref}</code>: when
+%%  <li><code>{ok, ResponseStatus, ResponseHeaders, Ref}</code>: When
 %%  the response succeeded. The request reference is used later to
 %%  retrieve the body.</li>
+%%  <li><code>{ok, ResponseStatus, ResponseHeaders, Body}</code>: When the
+%%  option `with_body' is set to true and the response succeeded.</li>
 %%  <li><code>{ok, Ref}</code> Return the request reference when you
 %%  decide to stream the request. You can use the returned reference to
 %%  stream the request body and continue to handle the response.</li>
@@ -279,6 +296,7 @@ request(Method, URL, Headers, Body) ->
 %%  </ul>
 -spec request(term(), url() | binary() | list(), list(), term(), list())
     -> {ok, integer(), list(), client_ref()}
+  | {ok, integer(), list(), binary()}
   | {ok, integer(), list()}
   | {ok, client_ref()}
   | {error, term()}.
@@ -539,7 +557,7 @@ resume_stream(Ref) ->
                                                end).
 
 %% @doc stop to receive asynchronously.
--spec stop_async(client_ref()) -> {ok, term()} | {error, req_not_found} | {error, term()}.
+-spec stop_async(client_ref()) -> {ok, client_ref()} | {error, req_not_found} | {error, term()}.
 stop_async(Ref) ->
   hackney_manager:stop_async_response(Ref).
 
@@ -954,6 +972,8 @@ reply_with_body(Status, Headers, State) ->
           end,
   case reply(Reply, State) of
     {ok, Body} ->
+      {ok, Status, Headers, Body};
+    {closed, Body} ->
       {ok, Status, Headers, Body};
     Error ->
       Error

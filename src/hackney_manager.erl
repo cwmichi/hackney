@@ -499,7 +499,7 @@ handle_owner_exit(Pid, Refs, Reason, State) ->
   NewState = clean_requests(Refs, Pid, Reason, PoolHandler, State#mstate{pids=Pids1}),
   {noreply, NewState}.
 
-clean_requests([Ref | Rest], Pid, Reason, PoolHandler, State) ->
+clean_requests([Ref | Rest], Pid, Reason, PoolHandler, State) ->
   case ets:lookup(?REFS, Ref) of
     [] ->
       %% ref already removed just return
@@ -540,32 +540,20 @@ clean_requests([], _Pid, _Reason, _PoolHandler, State) ->
 monitor_child(Pid) ->
   erlang:monitor(process, Pid),
   unlink(Pid),
-
   receive
-    {'EXIT', Pid, Reason} ->
-      receive
-        {'DOWN', _, process, Pid, normal} ->
-          ok;
-        {'DOWN', _, process, Pid, noproc} ->
-          ok;
-        {'DOWN', _, process, Pid, _} ->
-          {error, Reason}
-      end
+    {'EXIT', Pid, _} ->
+      true
   after 0 ->
-          ok
+    true
   end.
 
-terminate_async_response(Stream) ->
-  terminate_async_response(Stream, shutdown).
+terminate_async_response(StreamPid) ->
+  terminate_async_response(StreamPid, shutdown).
 
-terminate_async_response(Stream, Reason) ->
-  case monitor_child(Stream) of
-    ok ->
-      exit(Stream, Reason),
-      wait_async_response(Stream);
-    Error ->
-      Error
-  end.
+terminate_async_response(StreamPid, Reason) ->
+  _ = monitor_child(StreamPid),
+  exit(StreamPid, Reason),
+  wait_async_response(StreamPid).
 
 wait_async_response(Stream) ->
   receive
@@ -602,8 +590,7 @@ untrack_owner(Pid, Ref, Pids) ->
 
 init_metrics() ->
   %% get metrics module
-  Engine = metrics:init(hackney_util:mod_metrics()),
-
+  Engine = hackney_metrics:get_engine(),
   %% initialise metrics
   _ = metrics:new(Engine, counter, [hackney, nb_requests]),
   _ = metrics:new(Engine, counter, [hackney, total_requests]),

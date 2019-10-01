@@ -7,7 +7,7 @@
 %%% Copyright (c) 2011, Magnus Klaar <magnus.klaar@gmail.com>
 %%%
 
-%% @doc module to manage urls.
+%% @doc module to manage URLs.
 
 -module(hackney_url).
 
@@ -23,11 +23,14 @@
   pathencode/1,
   normalize/1, normalize/2]).
 
+-export([idnconvert_hostname/1]).
+
 -include("hackney_lib.hrl").
 
 -type qs_vals() :: [{binary(), binary() | true}].
+-type qs_opt() :: noplus | upper.
 
-%% @doc Parse an url and return a #hackney_url record.
+%% @doc Parse an URL and return a #hackney_url record.
 -spec parse_url(URL::binary()|list()) -> hackney_url().
 parse_url(URL) when is_list(URL) ->
   case unicode:characters_to_binary(URL) of
@@ -50,8 +53,7 @@ parse_url(URL, S) ->
   case binary:split(URL, <<"/">>) of
     [Addr] ->
       Path = <<"/">>,
-      parse_addr(Addr, S#hackney_url{raw_path = Path,
-        path = Path });
+      parse_addr1(Addr, S#hackney_url{raw_path = Path, path = Path });
     [Addr, Path] ->
       RawPath =  <<"/", Path/binary>>,
       {Path1, Query, Fragment} = parse_path(RawPath),
@@ -61,15 +63,15 @@ parse_url(URL, S) ->
         fragment = Fragment})
   end.
 
-%% @doc Normalizes the encoding of a Url
-%% use the hackney_url:pathencode/1 to encode an url
+%% @doc Normalizes the encoding of an URL.
+%% Use the {@link hackney_url:pathencode/1} to encode an URL.
 -spec normalize(URL) -> NormalizedUrl when
   URL :: binary() | list() | hackney_url(),
   NormalizedUrl :: hackney_url().
 normalize(Url) ->
   normalize(Url, fun hackney_url:pathencode/1).
 
-%% @doc Normalizes the encoding of a Url
+%% @doc Normalizes the encoding of an URL.
 -spec normalize(URL, Fun) -> NormalizedUrl when
   URL :: binary() | list() | hackney_url(),
   Fun :: fun(),
@@ -82,18 +84,22 @@ normalize(#hackney_url{}=Url, Fun) when is_function(Fun, 1) ->
     port = Port,
     netloc = Netloc0,
     path = Path} = Url,
-  
+
   {Host, Netloc} = case inet_parse:address(Host0) of
                      {ok, {_, _, _, _}} ->
                        {Host0, Netloc0};
                      {ok, {_, _, _, _, _, _, _, _}} ->
                        {Host0, Netloc0};
                      _ ->
-                       Host1 = unicode:characters_to_list(
-                         urldecode(unicode:characters_to_binary(Host0))),
-      
+                       Host1 = binary_to_list(
+                                 urldecode(unicode:characters_to_binary(Host0))
+                                ),
+
                        %% encode domain if needed
-                       Host2 = idna:to_ascii(Host1),
+                       Host2 = case Scheme of
+                                 http_unix -> Host1;
+                                 _ -> idnconvert_hostname(Host1)
+                               end,
                        Netloc1 = case {Scheme, Port} of
                                    {http, 80} -> list_to_binary(Host2);
                                    {https, 443} -> list_to_binary(Host2);
@@ -113,6 +119,17 @@ transport_scheme(hackney_ssl) ->
 transport_scheme(hackney_local_tcp) ->
   http_unix.
 
+is_ascii(Host) ->
+  lists:all(fun(C) -> idna_ucs:is_ascii(C) end, Host).
+
+idnconvert_hostname(Host) ->
+  case is_ascii(Host) of
+    true ->
+      Host;
+    false ->
+      idna:utf8_to_ascii(Host)
+  end.
+
 unparse_url(#hackney_url{}=Url) ->
   #hackney_url{scheme = Scheme,
     netloc = Netloc,
@@ -121,13 +138,13 @@ unparse_url(#hackney_url{}=Url) ->
     fragment = Fragment,
     user = User,
     password = Password} = Url,
-  
+
   Scheme1 = case Scheme of
               http -> <<"http://">>;
               https -> <<"https://">>;
               http_unix -> <<"http+unix://">>
             end,
-  
+
   Netloc1 = case User of
               <<>> ->
                 Netloc;
@@ -136,27 +153,42 @@ unparse_url(#hackney_url{}=Url) ->
               _ ->
                 << User/binary, "@", Netloc/binary >>
             end,
-  
+
   Qs1 = case Qs of
           <<>> -> <<>>;
           _ -> << "?", Qs/binary >>
         end,
-  
+
   Fragment1 = case Fragment of
                 <<>> -> <<>>;
                 _ -> << "#", Fragment/binary >>
               end,
-  
+
   Path1 = case Path of
             nil -> <<>>;
             undefined -> <<>>;
             <<>> -> <<"/">>;
             _ -> Path
           end,
-  
+
   << Scheme1/binary, Netloc1/binary, Path1/binary, Qs1/binary, Fragment1/binary >>.
 
 %% @private
+parse_addr1(Addr, S) ->
+  case binary:split(Addr, <<"?">>) of
+    [_Addr] ->
+     {Addr1, Fragment} = parse_fragment(Addr),
+     RawPath = case Fragment of
+                 <<"">> -> <<"">>;
+                 _ -> << "#", Fragment/binary >>
+               end,
+     parse_addr(Addr1, S#hackney_url{raw_path=RawPath, fragment = Fragment});
+    [Addr1, Query] ->
+      {Query1, Fragment} = parse_fragment(Query),
+      RawPath = << "?", Query/binary >>,
+      parse_addr(Addr1, S#hackney_url{raw_path=RawPath, qs=Query1, fragment=Fragment})
+  end.
+
 parse_addr(Addr, S) ->
   case binary:split(Addr, <<"@">>) of
     [Addr] ->
@@ -172,7 +204,7 @@ parse_addr(Addr, S) ->
             user = User,
             password = <<>> })
       end
-  
+
   end.
 
 parse_netloc(<<"[", Rest/binary>>, #hackney_url{transport=Transport}=S) ->
@@ -224,13 +256,13 @@ parse_fragment(S) ->
   end.
 
 
-%% @doc Decode a URL encoded binary.
+%% @doc Decode an URL encoded binary.
 %% @equiv urldecode(Bin, crash)
 -spec urldecode(binary()) -> binary().
 urldecode(Bin) when is_binary(Bin) ->
   urldecode(Bin, <<>>, crash).
 
-%% @doc Decode a URL encoded binary.
+%% @doc Decode an URL encoded binary.
 %% The second argument specifies how to handle percent characters that are not
 %% followed by two valid hex characters. Use `skip' to ignore such errors,
 %% if `crash' is used the function will fail with the reason `badarg'.
@@ -274,7 +306,7 @@ urlencode(Bin) ->
 %% characters, `\s', as `+'. The `upper' option overrides the default behaviour
 %% of writing hex numbers using lowecase letters to using uppercase letters
 %% instead.
--spec urlencode(binary() | string(), [noplus|upper]) -> binary().
+-spec urlencode(binary() | string(), [qs_opt()]) -> binary().
 urlencode(Bin, Opts) ->
   Plus = not proplists:get_value(noplus, Opts, false),
   Upper = proplists:get_value(upper, Opts, false),
@@ -309,13 +341,13 @@ tohexl(C) when C < 10 -> $0 + C;
 tohexl(C) when C < 16 -> $a + C - 10.
 
 
-%% parse a query or a form from a binary and return a list of properties
+%% Parse a query or a form from a binary and return a list of properties.
 -spec parse_qs(binary()) -> qs_vals().
 parse_qs(<<>>) ->
   [];
 parse_qs(Bin) ->
-  Tokens = binary:split(Bin, <<"&">>, [trim, global]),
-  [case binary:split(Token, <<"=">>, [trim]) of
+  Tokens = hackney_bstr:split(Bin, <<"&">>, [trim_all, global]),
+  [case hackney_bstr:split(Token, <<"=">>, [trim_all]) of
      [T] ->
        {urldecode(T), true};
      [Name, Value] ->
@@ -323,14 +355,14 @@ parse_qs(Bin) ->
    end || Token <- Tokens].
 
 
-%% @doc encode query properties to binary
+%% @doc Encode query properties to binary.
 -spec qs(qs_vals()) -> binary().
 qs(KVs) ->
   qs(KVs, []).
 
-%% @doc encode query properties to binary
-%% Opts are passed to urlencode.
--spec qs(qs_vals(), [atom]) -> binary().
+%% @doc Encode query properties to binary.
+%% Opts are passed to {@link urlencode/2.}
+-spec qs(qs_vals(), [qs_opt()]) -> binary().
 qs(KVs, Opts) ->
   qs(KVs, Opts, []).
 
@@ -342,8 +374,8 @@ qs([{K, V}|R], Opts, Acc) ->
   Line = << K1/binary, "=", V1/binary >>,
   qs(R, Opts, [Line | Acc]).
 
-%% @doc  construct an url from a base url, a path and a list of
-%% properties to give to the url.
+%% @doc Construct an URL from a base URL, a path and a list of
+%% properties to give to the URL.
 -spec make_url(binary(), binary() | [binary()], binary() | qs_vals())
     -> binary().
 make_url(Url, Path, Query) when is_list(Query) ->
@@ -355,13 +387,13 @@ make_url(Url, PathParts, Query) when is_binary(Query) ->
   %% create path
   PathParts1 = [fix_path(P) || P <- PathParts, P /= "", P /= "/" orelse P /= <<"/">>],
   Path = hackney_bstr:join([<<>> | PathParts1], <<"/">>),
-  
+
   %% initialise the query
   Query1 = case Query of
              <<>> -> <<>>;
              _ -> << "?", Query/binary >>
            end,
-  
+
   %% make the final uri
   iolist_to_binary([fix_path(Url), Path, Query1]).
 
@@ -377,7 +409,7 @@ fix_path(Path) ->
     _ -> Path
   end.
 
-%% @doc encode a URL path
+%% @doc Encode an URL path.
 %% @equiv pathencode(Bin, [])
 -spec pathencode(binary()) -> binary().
 pathencode(Bin) ->
@@ -395,7 +427,7 @@ partial_pathencode(<<C, Rest/binary>> = Bin, Acc) ->
   if	C >= $0, C =< $9 -> partial_pathencode(Rest, <<Acc/binary, C>>);
     C >= $A, C =< $Z -> partial_pathencode(Rest, <<Acc/binary, C>>);
     C >= $a, C =< $z -> partial_pathencode(Rest, <<Acc/binary, C>>);
-    C =:= $;; C =:= $=; C =:= $,; C =:= $:; C =:= $@ ->
+    C =:= $;; C =:= $=; C =:= $,; C =:= $:; C =:= $@; C =:= $(; C =:= $) ->
       partial_pathencode(Rest, <<Acc/binary, C>>);
     C =:= $.; C =:= $-; C =:= $+; C =:= $~; C =:= $_ ->
       partial_pathencode(Rest, <<Acc/binary, C>>);

@@ -2,9 +2,9 @@
 
 # hackney - HTTP client library in Erlang #
 
-Copyright (c) 2012-2018 Benoît Chesneau.
+Copyright (c) 2012-2019 Benoît Chesneau.
 
-__Version:__ 1.11.0
+__Version:__ 1.15.2
 
 # hackney
 
@@ -100,9 +100,9 @@ $ ./rebar3 shell
 It is suggested that you install rebar3 user-wide as described [here](http://blog.erlware.org/rebar3-features-part-1-local-install-and-upgrade/).
 This fixes zsh (and maybe other shells) escript-related bugs. Also this should speed things up.
 
-```erlang-repl
+```erlang
 
-1>> application:ensure_all_started(hackney).
+> application:ensure_all_started(hackney).
 ok
 ```
 
@@ -149,7 +149,7 @@ where `Method`, can be any HTTP method in lowercase.
 ### Read the body
 
 ```erlang
-{ok, Body} = hackney:body(Client).
+{ok, Body} = hackney:body(ClientRef).
 ```
 
 `hackney:body/1` fetch the body. To fetch it by chunk you can use the
@@ -158,7 +158,7 @@ where `Method`, can be any HTTP method in lowercase.
 ```erlang
 
 read_body(MaxLength, Ref, Acc) when MaxLength > byte_size(Acc) ->
-	case stream_body(Ref) of
+	case hackney:stream_body(Ref) of
 		{ok, Data} ->
 			read_body(MaxLength, Ref, << Acc/binary, Data/binary >>);
 		done ->
@@ -186,15 +186,23 @@ couple of requests.
 
 ```erlang
 
-Transport = hackney_tcp,
-Host = << "https://friendpaste.com" >>,
+Transport = hackney_ssl,
+Host = << "friendpaste.com" >>,
 Port = 443,
 Options = [],
-{ok, ConnRef} = hackney:connect(Transport, Host, Port, Options)
+{ok, ConnRef} = hackney:connect(Transport, Host, Port, Options).
 ```
 
 > To create a connection that will use an HTTP proxy use
 > `hackney_http_proxy:connect_proxy/5` instead.
+
+#### To get local and remote ip and port information of a connection:
+
+```erlang
+
+> hackney:peername(ConnRef).
+> hackney:sockname(ConnRef).
+```
 
 #### Make a request
 
@@ -207,9 +215,9 @@ ReqBody = << "{	\"snippet\": \"some snippet\" }" >>,
 ReqHeaders = [{<<"Content-Type">>, <<"application/json">>}],
 NextPath = <<"/">>,
 NextMethod = post,
-NextReq = {NextMethod, NextPath, ReqHeaders, ReqBody}
-{ok, _, _, ConnRef} = hackney:send_request(ConnRef, NextReq).
-{ok, Body1} = hackney:body(ConnRef),
+NextReq = {NextMethod, NextPath, ReqHeaders, ReqBody},
+{ok, _, _, ConnRef} = hackney:send_request(ConnRef, NextReq),
+{ok, Body1} = hackney:body(ConnRef).
 ```
 
 Here we are posting a JSON payload to '/' on the friendpaste service to
@@ -228,6 +236,7 @@ the request body:
   - `eof`: end the multipart request
   - `{file, Path}`: to stream a file
   - `{file, Path, ExtraHeaders}`: to stream a file
+  - `{file, Path, Name, ExtraHeaders}` : to send a file with DOM element name and extra headers
   - `{Name, Content}`: to send a full part
   - `{Name, Content, ExtraHeaders}`: to send a full part
   - `{mp_mixed, Name, MixedBoundary}`: To notify we start a part with a
@@ -414,6 +423,51 @@ Options = [{follow_redirect, true}, {max_redirect, 5}],
 {ok, Body1} = hackney:body(Ref).
 ```
 
+### Use SSL/TLS with self signed certificates
+
+Hackney uses CA bundles adapted from Mozilla by
+[certifi](https://hex.pm/packages/certifi).
+Recognising an organisation specific (self signed) certificates is possible
+by providing the necessary `ssl_options`. Note that `ssl_options` overrides all
+options passed to the ssl module.
+
+ex (>= Erlang 21):
+
+```erlang
+
+CACertFile = <path_to_self_signed_ca_bundle>,
+CrlCheckTimeout = 5000,
+SSLOptions = [
+{verify, verify_peer},
+{versions, ['tlsv1.2']},
+{cacertfile, CACertFile},
+{crl_check, peer},
+{crl_cache, {ssl_crl_cache, {internal, [{http, CrlCheckTimeout}]}}},
+{customize_hostname_check,
+  [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]}],
+
+Method = get,
+URL = "http://my-organisation/",
+ReqHeaders = [],
+ReqBody = <<>>,
+Options = [{ssl_options, SSLoptions}],
+{ok, S, H, Ref} = hackney:request(Method, URL, ReqHeaders,
+                                  ReqBody, Options),
+
+%% To provide client certificate:
+
+CertFile = <path_to_client_certificate>,
+KeyFile = <path_to_client_private_key>,
+SSLOptions1 = SSLoptions ++ [
+{certfile, CertFile},
+{keyfile, KeyFile}
+],
+Options1 = [{ssl_options, SSLoptions1}],
+{ok, S1, H1, Ref1} = hackney:request(Method, URL, ReqHeaders,
+                                     ReqBody, Options1).
+
+```
+
 ### Proxy a connection
 
 #### HTTP Proxy
@@ -475,7 +529,7 @@ been started.
 |hackney.POOLNAME.take_rate    |meter    | meter recording rate at which a connection is retrieved from the pool|
 |hackney.POOLNAME.no_socket    |counter  | Count of new connections                                             |
 |hackney.POOLNAME.in_use_count |histogram| How many connections from the pool are used                          |
-|hackney.POOLNAME.free_count   |counter  | Number of free sockets in the pool                                   |
+|hackney.POOLNAME.free_count   |histogram| Number of free sockets in the pool                                   |
 |hackney.POOLNAME.queue_counter|histogram| queued clients                                                       |
 
 ## Contribute
@@ -512,7 +566,7 @@ Running the tests:
 
 ```
 $ gunicorn --daemon --pid httpbin.pid httpbin:app
-$ make test
+$ rebar3 eunit
 $ kill `cat httpbin.pid`
 ```
 
@@ -533,6 +587,7 @@ $ kill `cat httpbin.pid`
 <tr><td><a href="hackney_http_connect.md" class="module">hackney_http_connect</a></td></tr>
 <tr><td><a href="hackney_local_tcp.md" class="module">hackney_local_tcp</a></td></tr>
 <tr><td><a href="hackney_manager.md" class="module">hackney_manager</a></td></tr>
+<tr><td><a href="hackney_metrics.md" class="module">hackney_metrics</a></td></tr>
 <tr><td><a href="hackney_multipart.md" class="module">hackney_multipart</a></td></tr>
 <tr><td><a href="hackney_pool.md" class="module">hackney_pool</a></td></tr>
 <tr><td><a href="hackney_pool_handler.md" class="module">hackney_pool_handler</a></td></tr>

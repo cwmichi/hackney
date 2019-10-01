@@ -1,5 +1,89 @@
 # NEWS
 
+1.15.2 - 2019-09-25
+-------------------
+
+- doc: fix tes run example in readme
+- fix: hackney stream, send `hackney_response` before calling `handle_error` 
+- fix: error remove ssl `honor_cipher_order` option
+- doc: document self-signed certificate usage
+- bump `ssl_verify_fun` to 1.1.5 
+- fix: don't use default pool if set to false
+- fix: `hackney_headers_new:store/3`  fix value appending to a list
+- fix: miscellaeous specs
+- doc: miscellaneous improvements
+
+
+1.15.1 - 2019-02-26
+-------------------
+
+- fix: don't try to encode encode to IDN with full ASCII names.
+
+> this behaviour is similar to curl and fix errors some people had with docker
+> creating domain names containing a `_`
+
+- doc: clarify `recv_timeout` usage
+- fix: don't try to encode hostname IPs to IDN
+- fix: path encoding to support `(` `)` characters
+- bump mimerl to 1.2
+- bump certifi to 2.5.1
+
+
+1.15.0 - 2019-01-04
+-------------------
+
+- improve multipart: send form with a field names for files
+- fix pool `checkout_cancel`: reduce the number of pending requests
+
+1.14.3 - 2018-09-29
+-------------------
+
+- idna: don't try to encode a unix socket path
+
+1.14.2 - 2018-09-28
+-------------------
+
+- fix: don't IDNA encode the host with unix scheme
+- doc: document `basic_auth` setting
+
+1.14.0 - 2018-09-12
+-------------------
+
+- bump to certifi 2.4.2
+- bump to idna 0.6.0
+- fix support of rebar2
+- fix specs
+- add `hackney:sockname/1` adn `hackney:peername/1` functions
+- add new `checkout_timeout` option for clarity
+- improve `hackney_url:parse_qs/1` to trim leading and trailing empty values
+
+
+1.13.0 - 2018-06-22
+-------------------
+
+- fix compatibility with Erlang/OTP 21
+- fix parsing query parameters on url without path (#512)
+- bump idna to 1.5.2: fix compatibility with rebar2 (#509)
+- fix accessing HTTPS sites with an IP address (#494)
+
+1.12.1 - 2018-04-03
+-------------------
+
+- fix terminate_async_response (#498)
+
+1.12.0 - 2018-04-03
+-------------------
+
+- fix socks5 badarg error when an IP is given
+- upgrade IDNA to 5.1.1
+- upgrade certifi to 2.3.1
+- fix handling of requests with content-length or transfer-encoding given (#475)
+- improvements: send SNI in socks5 SSL
+- fix:  Allow trailing spaces at the end of chunk sizes (#489)
+- fix: set once the metrics engine
+- fix leak in the socket pool (#462)
+- fix doc
+
 1.11.0 - 2018-01-23
 -------------------
 
