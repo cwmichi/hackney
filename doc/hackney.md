@@ -45,7 +45,7 @@ url() = #hackney_url{} | binary()
 
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#body-1">body/1</a></td><td>Return the full body sent with the response.</td></tr><tr><td valign="top"><a href="#body-2">body/2</a></td><td>Return the full body sent with the response as long as the body
-length doesn't go over MaxLength.</td></tr><tr><td valign="top"><a href="#cancel_request-1">cancel_request/1</a></td><td>Extract raw informations from the client context
+length doesn't go over MaxLength.</td></tr><tr><td valign="top"><a href="#cancel_request-1">cancel_request/1</a></td><td>Extract raw information from the client context
 This feature can be useful when you want to create a simple proxy, rerouting
 on the headers and the status line and continue to forward the connection for example.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>close the client.</td></tr><tr><td valign="top"><a href="#connect-1">connect/1</a></td><td></td></tr><tr><td valign="top"><a href="#connect-2">connect/2</a></td><td></td></tr><tr><td valign="top"><a href="#connect-3">connect/3</a></td><td>connect a socket and create a client state.</td></tr><tr><td valign="top"><a href="#connect-4">connect/4</a></td><td></td></tr><tr><td valign="top"><a href="#controlling_process-2">controlling_process/2</a></td><td>Assign a new controlling process <em>Pid</em> to <em>Client</em>.</td></tr><tr><td valign="top"><a href="#cookies-1">cookies/1</a></td><td></td></tr><tr><td valign="top"><a href="#finish_send_body-1">finish_send_body/1</a></td><td></td></tr><tr><td valign="top"><a href="#location-1">location/1</a></td><td>return the requested location.</td></tr><tr><td valign="top"><a href="#pause_stream-1">pause_stream/1</a></td><td>pause a response stream, the stream process will hibernate and
 be woken later by the resume function.</td></tr><tr><td valign="top"><a href="#peername-1">peername/1</a></td><td>peername of the client.</td></tr><tr><td valign="top"><a href="#redirect_location-1">redirect_location/1</a></td><td></td></tr><tr><td valign="top"><a href="#request-1">request/1</a></td><td>make a request.</td></tr><tr><td valign="top"><a href="#request-2">request/2</a></td><td>make a request.</td></tr><tr><td valign="top"><a href="#request-3">request/3</a></td><td>make a request.</td></tr><tr><td valign="top"><a href="#request-4">request/4</a></td><td>make a request.</td></tr><tr><td valign="top"><a href="#request-5">request/5</a></td><td>make a request.</td></tr><tr><td valign="top"><a href="#request_info-1">request_info/1</a></td><td>get request info.</td></tr><tr><td valign="top"><a href="#resume_stream-1">resume_stream/1</a></td><td>resume a paused response stream, the stream process will be
@@ -64,7 +64,7 @@ fashion</li>
 <li><code>{part, Name}</code>: to start sending a part without length in a streaming
 fashion</li>
 <li><code>{part, Name, ExtraHeader}</code>: to start sending a part without
-lengthin a streaming  fashion</li>
+length in a streaming  fashion</li>
 <li><code>{part_bin, Bin}</code>: To send part of part</li>
 <li><code>{part, eof}</code>: To notify the end of the part </li>
 <li><code>{mp_mixed, Name, MixedBoundary}</code>: To notify we start a part with a a mixed
@@ -108,11 +108,11 @@ length doesn't go over MaxLength.
 ### cancel_request/1 ###
 
 <pre><code>
-cancel_request(Ref::<a href="#type-client_ref">client_ref()</a>) -&gt; {ok, {atom(), <a href="inet.md#type-socket">inet:socket()</a>, binary(), <a href="hackney_response.md#type-response_state">hackney_response:response_state()</a>}} | {error, term()}
+cancel_request(Ref::<a href="#type-client_ref">client_ref()</a>) -&gt; {ok, {atom(), <a href="/Users/benoitc/Projects/kernel/doc/inet.md#type-socket">inet:socket()</a>, binary(), <a href="/Users/benoitc/Projects/hackney/doc/hackney_response.md#type-response_state">hackney_response:response_state()</a>}} | {error, term()}
 </code></pre>
 <br />
 
-Extract raw informations from the client context
+Extract raw information from the client context
 This feature can be useful when you want to create a simple proxy, rerouting
 on the headers and the status line and continue to forward the connection for example.
 
@@ -487,7 +487,7 @@ fashion
 fashion
 
 * `{part, Name, ExtraHeader}`: to start sending a part without
-lengthin a streaming  fashion
+length in a streaming  fashion
 
 * `{part_bin, Bin}`: To send part of part
 
@@ -531,17 +531,24 @@ setopts(Ref::<a href="#type-client_ref">client_ref()</a>, Options::list()) -&gt;
 
 set client options.
 Options are:
-- `async`: to fetch the response asynchronously
-- `{async, once}`: to receive the response asynchronously one time.
+
+* `async`: to fetch the response asynchronously
+
+* `{async, once}`: to receive the response asynchronously one time.
 To receive the next message use the function `hackney:stream_next/1`.
-- `{stream_to, pid()}`: to set the pid where the messages of an
+
+* `{stream_to, pid()}`: to set the pid where the messages of an
 asynchronous response will be sent.
-- `{follow_redirect, bool()}` : if true a redirection will be
+
+* `{follow_redirect, bool()}` : if true a redirection will be
 followed when the response is received synchronously
-- `{force_redirect, bool()}` : if true a 301/302 redirection will be
+
+* `{force_redirect, bool()}` : if true a 301/302 redirection will be
 followed even on POST.
-- `{max_redirect, integer()}` the maximum number of redirections that
+
+* `{max_redirect, integer()}` the maximum number of redirections that
 will be followed
+
 
 <a name="skip_body-1"></a>
 

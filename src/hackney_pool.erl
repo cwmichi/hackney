@@ -4,7 +4,7 @@
 %%% See the NOTICE for more information.
 %%%
 %%% Copyright (c) 2009, Erlang Training and Consulting Ltd.
-%%% Copyright (c) 2012-2015, Benoît Chesneau <benoitc@e-engura.org>
+%%% Copyright (c) 2012-2021, Benoît Chesneau <benoitc@e-engura.org>
 
 %% @doc pool of sockets connections
 %%
@@ -59,32 +59,19 @@ start() ->
   ok.
 
 %% @doc fetch a socket from the pool
-checkout(Host, Port, Transport, #client{options = Opts} = Client) ->
-  ConnectTimeout = proplists:get_value(connect_timeout, Opts, 8000),
-  %% Fall back to using connect_timeout if checkout_timeout is not set
-  CheckoutTimeout = proplists:get_value(checkout_timeout, Opts, ConnectTimeout),
+checkout(Host, Port, Transport, Client) ->
   Requester = self(),
-  Ref = make_ref(),
-  Fun =
-    fun() ->
-      Result =
-        try
-          do_checkout(Requester, Host, Port, Transport, Client, ConnectTimeout, CheckoutTimeout)
-        catch _:_ ->
-          {error, checkout_failure}
-        end,
-      Requester ! {checkout, Ref, Result}
-    end,
-  _ = spawn(Fun),
-  receive
-    {checkout, Ref, Result} ->
-      Result
-  after CheckoutTimeout ->
-    {error, checkout_timeout}
+  try
+    do_checkout(Requester, Host, Port, Transport, Client)
+  catch _:_ ->
+    {error, checkout_failure}
   end.
 
 do_checkout(Requester, Host, _Port, Transport, #client{options=Opts,
-  mod_metrics=Metrics}=Client, ConnectTimeout, CheckoutTimeout) ->
+  mod_metrics=Metrics}=Client) ->
+  ConnectTimeout = proplists:get_value(connect_timeout, Opts, 8000),
+  %% Fall back to using connect_timeout if checkout_timeout is not set
+  CheckoutTimeout = proplists:get_value(checkout_timeout, Opts, ConnectTimeout),
   {Connection, ConnectOptions} = hackney_connection:new(Client),
   RequestRef = Client#client.request_ref,
   PoolName = proplists:get_value(pool, Opts, default),
@@ -96,8 +83,6 @@ do_checkout(Requester, Host, _Port, Transport, #client{options=Opts,
       ?report_debug("reuse a connection", [{pool, PoolName}]),
       _ = metrics:update_meter(Metrics, [hackney_pool, PoolName, take_rate], 1),
       _ = metrics:increment_counter(Metrics, [hackney_pool, Host, reuse_connection]),
-
-
       {ok, {PoolName, RequestRef, Connection, Owner, Transport}, Socket};
     {error, no_socket, Owner} ->
       ?report_trace("no socket in the pool", [{pool, PoolName}]),
@@ -127,8 +112,7 @@ do_checkout(Requester, Host, _Port, Transport, #client{options=Opts,
     {error, Reason} ->
       {error, Reason};
     {'EXIT', {timeout, _}} ->
-      % socket will still checkout so to avoid deadlock we send in a cancellation
-      gen_server:cast(Pool, {checkout_cancel, Connection, RequestRef}),
+      %% checkout should be canceled by the caller via hackney_manager
       {error, checkout_timeout}
   end.
 
@@ -262,15 +246,6 @@ start_link(Name, Options0) ->
   gen_server:start_link(?MODULE, [Name, Options], []).
 
 init([Name, Options]) ->
-  case lists:member({seed,1}, ssl:module_info(exports)) of
-    true ->
-      % Make sure that the ssl random number generator is seeded
-      % This was new in R13 (ssl-3.10.1 in R13B vs. ssl-3.10.0 in R12B-5)
-      apply(ssl, seed, [crypto:strong_rand_bytes(255)]);
-    false ->
-      ok
-  end,
-
   MaxConn = case proplists:get_value(pool_size, Options) of
               undefined ->
                 proplists:get_value(max_connections, Options);
@@ -326,7 +301,7 @@ handle_call({checkout, Dest, Requester, RequestRef}, From, State) ->
       end
   end;
 handle_call({checkin, Ref, Dest, Socket, Transport}, From, State) ->
-  gen_server:reply(From, ok),
+  reply_if_alive(From, ok),
   Clients2 = case dict:find(Ref, State#state.clients) of
                {ok, Dest} ->
                  dict:erase(Ref, State#state.clients);
@@ -359,18 +334,6 @@ handle_cast({set_maxconn, MaxConn}, State) ->
   {noreply, State#state{max_connections=MaxConn}};
 handle_cast({set_timeout, NewTimeout}, State) ->
   {noreply, State#state{timeout=NewTimeout}};
-
-handle_cast({checkout_cancel, Dest, Ref}, State) ->
-  #state{queues=Queues, pending=Pending} = State,
-  {Queues2, Removed} = del_from_queue(Dest, Ref, Queues),
-  case Removed of
-    true ->
-      Pending2 = del_pending(Ref, Pending),
-      {noreply, State#state{queues=Queues2, pending=Pending2}};
-    false ->
-      % we leak the socket here but 'DOWN' will mop up for us when it times out
-      {noreply, dequeue(Dest, Ref, State)}
-  end;
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
@@ -422,11 +385,11 @@ dequeue(Dest, Ref, State) ->
     empty ->
       State#state{clients = Clients2};
     {ok, {From, Ref2, _Requester}, Queues2} ->
-      Pending2 = del_pending(Ref, Pending),
+      Pending2 = del_pending(Ref2, Pending),
       _ = metrics:update_histogram(
             State#state.metrics, [hackney_pool, State#state.name, queue_count], dict:size(Pending2)
            ),
-      gen_server:reply(From, {error, no_socket, self()}),
+      reply_if_alive(From, {error, no_socket, self()}),
       State2 = State#state{queues = Queues2, clients = Clients2, pending=Pending2},
       monitor_client(Dest, Ref2, State2)
   end.
@@ -524,25 +487,6 @@ add_to_queue(Connection, From, Ref, Requester, Queues) ->
 %------------------------------------------------------------------------------
 %% @private
 %%------------------------------------------------------------------------------
-del_from_queue(Connection, Ref, Queues) ->
-  case dict:find(Connection, Queues) of
-    error ->
-      {Queues, false};
-    {ok, Q} ->
-      Q2 = queue:filter(fun({_, R, _}) -> R =/= Ref end, Q),
-      Removed = queue:len(Q) =/= queue:len(Q2),
-      Queues2 = case queue:is_empty(Q2) of
-                  true ->
-                    dict:erase(Connection, Queues);
-                  false ->
-                    dict:store(Connection, Q2, Queues)
-                end,
-      {Queues2, Removed}
-  end.
-
-%------------------------------------------------------------------------------
-%% @private
-%%------------------------------------------------------------------------------
 queue_out(Connection, Queues) ->
   case dict:find(Connection, Queues) of
     error ->
@@ -578,17 +522,16 @@ deliver_socket(Socket, Connection, State) ->
            ),
       case hackney_connection:controlling_process(Connection, Socket, PidWaiter) of
         ok ->
-          gen_server:reply(FromWaiter, {ok, Socket, self()}),
+          reply_if_alive(FromWaiter, {ok, Socket, self()}),
           monitor_client(Connection, Ref, State#state{queues = Queues2, pending=Pending2});
         _Error ->
           % Something wrong, close the socket
           _ = (catch hackney_connection:close(Connection, Socket)),
           %% and let the waiter connect to a new one
-          gen_server:reply(FromWaiter, {error, no_socket, self()}),
+          reply_if_alive(FromWaiter, {error, no_socket, self()}),
           State#state{queues = Queues2, pending = Pending2}
       end
   end.
-
 
 add_pending(Ref, From, Connection, Requester, Pending) ->
   dict:store(Ref, {From, Connection, Requester}, Pending).
@@ -639,7 +582,7 @@ init_metrics(PoolName) ->
   _ = metrics:new(Engine, counter, [hackney_pool, PoolName, no_socket]),
   _ = metrics:new(Engine, histogram, [hackney_pool, PoolName, in_use_count]),
   _ = metrics:new(Engine, histogram, [hackney_pool, PoolName, free_count]),
-  _ = metrics:new(Engine, histogram, [hackney_pool, PoolName, queue_counter]),
+  _ = metrics:new(Engine, histogram, [hackney_pool, PoolName, queue_count]),
   Engine.
 
 delete_metrics(Engine, PoolName) ->
@@ -647,7 +590,7 @@ delete_metrics(Engine, PoolName) ->
   _ = metrics:delete(Engine, [hackney_pool, PoolName, no_socket]),
   _ = metrics:delete(Engine, [hackney_pool, PoolName, in_use_count]),
   _ = metrics:delete(Engine, [hackney_pool, PoolName, free_count]),
-  _ = metrics:delete(Engine, [hackney_pool, PoolName, queue_counter]),
+  _ = metrics:delete(Engine, [hackney_pool, PoolName, queue_count]),
   ok.
 
 
@@ -668,3 +611,11 @@ handle_stats(State) ->
    {in_use_count,  dict:size(Clients)},
    {free_count, dict:size(Sockets)},
    {queue_count, dict:size(Pending)}].
+
+reply_if_alive({Pid, _Tag}=To, Msg) ->
+  case is_process_alive(Pid) of
+    true ->
+      gen_server:reply(To, Msg);
+    false ->
+      ok
+  end.

@@ -1,5 +1,66 @@
 # NEWS
 
+1.18.1 - 2022-02-03
+-------------------
+
+- security: update default CA bundles
+- doc: fix typos
+
+
+1.18.0 - 2021-09-28
+-------------------
+
+- security: update default CA bundle
+- fix pool: make checkout synchrounous (remove unwanted messages)
+
+1.17.4 - 2021-03-18
+-------------------
+
+- fix checking when socket is put back in the pool when the requester died.
+
+1.17.3 - 2021-03-17
+-------------------
+
+- fix: ensure we release a socket in the pool when the requester died before being monitored.
+
+1.17.2 - 2021-03-16
+-------------------
+
+- use parse_trans 3.3.1 only (fix compatibility with Erlang < 21)
+- bump certifi version
+- Allow merging of SSL opts
+
+1.17.1 - 2021-03-15
+-------------------
+
+- fix: Avoid `parse_trans` warning when using hackney as a dependency
+- fix: Link checkout process to fix dangling aborted request
+
+1.17.0 - 2020-12-19
+-------------------
+
+- fix SSL compatibility with erlang OTP 23
+- handle empty trailers
+- fix race condition in connection pool
+- fix memory leak in connection pool
+- IDNA update to unicode 13.0.0
+- fix build on macosx with OTP >= 20.1
+- fix network Location on redirect
+- produce uppercase hexadecimal in URLS
+- pool queue count metric is now named `queue_count`
+- miscellaneous fixes in documentation
+
+
+** possible breaking change **
+
+- pool queue count metric is now named `queue_count`. You should update your dashboard to reflect it.
+
+- possible breacking changes when producing uppercase hexadecimal in urls
+
+This change the behaviour of urlencode and pathencode to produce
+uppercase hexadecimal to comply to the RFC3986 which may affect
+systems using URL as signature or in an hash.
+
 1.16.0 - 2020-05-25
 -------------------
 
@@ -78,7 +139,7 @@
 - bump to idna 0.6.0
 - fix support of rebar2
 - fix specs
-- add `hackney:sockname/1` adn `hackney:peername/1` functions
+- add `hackney:sockname/1` and `hackney:peername/1` functions
 - add new `checkout_timeout` option for clarity
 - improve `hackney_url:parse_qs/1` to trim leading and trailing empty values
 
@@ -390,7 +451,7 @@
 ------------------
 
 - improvement: Do not wait to cancel a request
-- improvement: do not control the request premptively
+- improvement: do not control the request preemptively
 
 1.0.4 - 2014/12/8
 -----------------
@@ -483,7 +544,7 @@ supported release of hackney.
 ### Breaking change:
 
 When doing an HEAD request, the signature of the response when it
-succeded is now `{ok, Status, ResponseHeaders}` and do not contains a
+succeeded is now `{ok, Status, ResponseHeaders}` and do not contains a
 client reference any more.
 
 
@@ -630,7 +691,7 @@ service release with a new feature and some minor improvements
 
 - added the support for [socks5
   proxies](https://github.com/benoitc/hackney#socks5-proxy)
-- improvment: integer and atom can now be passed in url params or forms
+- improvement: integer and atom can now be passed in url params or forms
   values.
 - breaking change: differentiate connect/recv timeout, now connect
   timeout return `{error, connect_timeout}`
@@ -656,7 +717,7 @@ used for async response requests.
   process is killed.
 - fix: make sure we pass a `Transfer-Encoding: chunked` header when we
   send a body without content-length.
-- fix: make sure the client is correcly reconnected when we reuse a
+- fix: make sure the client is correctly reconnected when we reuse a
   reference.
 
 0.7.0 - 2013/11/22
@@ -714,7 +775,7 @@ fix: fix file upload content type
 0.4.2 - 2013/06/10
 ------------------
 
-- handle `identity` transfert encoding. When the connection close return
+- handle `identity` transfer encoding. When the connection close return
   latest buffer.
 
 0.4.1 - 2013/06/10
@@ -752,7 +813,7 @@ and maybe use the partial body.
 
 - Add Multipart support
 - Add HTTP Proxy tunneling support
-- Fix Chuncked Response decoding
+- Fix Chunked Response decoding
 
 0.2.0 - 2012/07/18
 ------------------

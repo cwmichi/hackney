@@ -2,15 +2,15 @@
 
 # hackney - HTTP client library in Erlang #
 
-Copyright (c) 2012-2020 Benoît Chesneau.
+Copyright (c) 2012-2022 Benoît Chesneau.
 
-__Version:__ 1.16.0
+__Version:__ 1.18.1
 
 # hackney
 
 **hackney** is an HTTP client library for Erlang.
 
-[![Build Status](https://travis-ci.org/benoitc/hackney.png?branch=master)](https://travis-ci.org/benoitc/hackney)
+[![Build Status](https://github.com/benoitc/hackney/workflows/build/badge.svg)](https://github.com/benoitc/hackney/actions?query=workflow%3Abuild)
 [![Hex pm](http://img.shields.io/hexpm/v/hackney.svg?style=flat)](https://hex.pm/packages/hackney)
 
 ## Main features:
@@ -171,7 +171,7 @@ read_body(MaxLength, Ref, Acc) when MaxLength > byte_size(Acc) ->
 > Note: you can also fetch a multipart response using the functions
 > `hackney:stream_multipart/1` and  `hackney:skip_multipart/1`.
 
-> Note 2: using the `with_body` option will return the body directy instead of a reference.
+> Note 2: using the `with_body` option will return the body directly instead of a reference.
 
 ### Reuse a connection
 
@@ -327,7 +327,7 @@ LoopFun(LoopFun, ClientRef).
 > example [test_async_once2](https://github.com/benoitc/hackney/blob/master/examples/test_async_once2.erl) for the usage.
 
 > **Note 4**:  When the option `{follow_redirect, true}` is passed to
-> the request, you will receive the folllowing messages on valid
+> the request, you will receive the following messages on valid
 > redirection:
 > - `{redirect, To, Headers}`
 > - `{see_other, To, Headers}` for status 303 and POST requests.
@@ -517,24 +517,26 @@ been started.
 
 #### Metrics per Hosts
 
-|Name                        |Type     | Description                |
-|----------------------------|---------|----------------------------|
-|hackney.HOST.nb_requests    |counter  | Number of running requests |
-|hackney.HOST.request_time   |histogram| Request time               |
-|hackney.HOST.connect_time   |histogram| Connect time               |
-|hackney.HOST.response_time  |histogram| Response time              |
-|hackney.HOST.connect_timeout|counter  | Number of connect timeout  |
-|hackney.HOST.connect_error  |counter  | Number of timeout errors   |
+|Name                              |Type     | Description                               |
+|----------------------------------|---------|-------------------------------------------|
+|hackney.HOST.nb_requests          |counter  | Number of running requests                |
+|hackney.HOST.request_time         |histogram| Request time                              |
+|hackney.HOST.connect_time         |histogram| Connect time                              |
+|hackney.HOST.response_time        |histogram| Response time                             |
+|hackney.HOST.connect_timeout      |counter  | Number of connect timeout                 |
+|hackney.HOST.connect_error        |counter  | Number of timeout errors                  |
+|hackney_pool.HOST.new_connection  |counter  | Number of new pool connections per host   |
+|hackney_pool.HOST.reuse_connection|counter  | Number of reused pool connections per host|
 
 #### Metrics per Pool
 
-|Name                          |Type       | Description                                                        |
-|------------------------------|-----------|--------------------------------------------------------------------|
-|hackney.POOLNAME.take_rate    |meter    | meter recording rate at which a connection is retrieved from the pool|
-|hackney.POOLNAME.no_socket    |counter  | Count of new connections                                             |
-|hackney.POOLNAME.in_use_count |histogram| How many connections from the pool are used                          |
-|hackney.POOLNAME.free_count   |histogram| Number of free sockets in the pool                                   |
-|hackney.POOLNAME.queue_counter|histogram| queued clients                                                       |
+|Name                              |Type     | Description                                                          |
+|----------------------------------|---------|----------------------------------------------------------------------|
+|hackney_pool.POOLNAME.take_rate   |meter    | meter recording rate at which a connection is retrieved from the pool|
+|hackney_pool.POOLNAME.no_socket   |counter  | Count of new connections                                             |
+|hackney_pool.POOLNAME.in_use_count|histogram| How many connections from the pool are used                          |
+|hackney_pool.POOLNAME.free_count  |histogram| Number of free sockets in the pool                                   |
+|hackney_pool.POOLNAME.queue_count |histogram| queued clients                                                       |
 
 ## Contribute
 
